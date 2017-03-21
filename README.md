@@ -18,5 +18,25 @@ You should see something like this:
 
 ![checkers](checkers.png)
 
+## TODO list/ timeline
+- [x] Create initial frameworks
+- [x] Create function for displaying the board
+- [x] List diagonal spaces and recognize pieces
+- [x] Add move planning
+- [ ] Add jump planning
+- [ ] Support king piece moves
+- [ ] Support either-side moves
+- [ ] Allow simulation of moves
+- [ ] Update the board when a move is made
+- [ ] Tally and judge moves by piece differential
+- [ ] Add recursion for moves
+- [ ] Add recursion depth limiter
+- [ ] Add interactive player vs computer games
+- [ ] Make windows-supported version
+- [ ] Build and publish as V0
+- [ ] Make curses game display
+- [ ] Make curses move selection interface
+- [ ] Build and publish as V1
+
 ## Contributors
 [Me](https://github.com/aderhall)! (so lonely...)
