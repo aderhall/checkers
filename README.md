@@ -16,7 +16,7 @@ To use checkers, cd into the folder containing the script and run:
 ``python3 checkers.py``
 You should see something like this:
 
-![checkers](checkers.png)
+![checkers](https://github.com/aderhall/checkers/checkers.png)
 
 ## Contributors
 [Me](https://github.com/aderhall)! (so lonely...)
