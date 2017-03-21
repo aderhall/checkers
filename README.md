@@ -16,7 +16,7 @@ To use checkers, cd into the folder containing the script and run:
 ``python3 checkers.py``
 You should see something like this:
 
-![checkers](checkers.png)
+![checkers](Checkers.png)
 
 ## TODO list/ timeline
 - [x] Create initial frameworks
