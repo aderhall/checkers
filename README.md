@@ -9,7 +9,7 @@ I am using python3 and a text-based terminal interface, though I plan to make a 
 - a terminal emulator that supports [ANSI colors](https://en.wikipedia.org/wiki/ANSI_escape_code)- or else yours and the opponent's pieces are gonna look mighty similar
 
 ## Installation
-There really is none. It's still in development and i'm not going to set something like that up until I reach a certain stage in production. To test, just download or clone the repository.
+There really is none. It's still in development and I'm not going to set something like that up until I reach a certain stage in production. To test, just download or clone the repository.
 
 ## Usage
 To use checkers, cd into the folder containing the script and run:

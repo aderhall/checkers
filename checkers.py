@@ -15,12 +15,16 @@ class bcolors:
     # These are for the checkerboard (I made them myself)
     WHITE = '\033[37m'
     BLACK = '\033[30m'
+# Check if the user has specified a specific player
 if len(arguments) == 1:
     player = 1
 elif 'p1' in arguments:
     player = 1
 elif 'p2' in arguments:
     player = 2
+
+# Define the main functions this program will be using
+
 def display(player, board):
     """Render the board and pieces in pretty colors using ASCII block characters"""
     # Clear the screen
@@ -51,7 +55,7 @@ def display(player, board):
     # Print the bottom border
     print('  ----------------')
 def turn(player, board):
-    """Return the decided turn for the player being simulated in the given situation"""
+    """Return the decided turn for the player being simulated in the given situation (under construction)"""
     pass
 def get_diagonals(piece):
     """Get the diagonal spaces around a space and return a list of lists containing their coordinates"""
@@ -82,18 +86,22 @@ def get_diagonals(piece):
     # Return the list of lists ( [[coordinate1Y, coordinate1X], [coordinate2Y, coordinate2X]...] )
     return diagonals
 def get_player(piece, board):
+    """Get the player who controls a given piece"""
     return board[piece[0]][piece[1]]
 def is_opponent(piece, board, player):
+    """Test if a given piece is the opponent of a player"""
     test = get_player(piece, board)
     if test == player + 3 or test == player + 1 or test == player -3 or test == player -1:
         return True
     else:
         return False
 def is_open(home, piece, board):
-    if abs(home[0]-piece[0]) == 2 and abs(home[1]-piece[1]) == 2:
+    """Test if a piece is open for jumps from a 'home' piece"""
+    if abs(home[0]-piece[0]) == 2 and abs(home[1]-piece[1]) == 2 and get_player(piece, board) == 0:
         return True
     else:
         return False
+# Deprecated jumps function- doesn't work
 """def get_jumps(piece, board):
     player = get_player(piece, board)
     diagonals = get_diagonals(piece)
@@ -113,22 +121,33 @@ def is_open(home, piece, board):
     return jumps
 """
 def get_jumps(piece, board, player):
+    """Get the jump moves possible for a piece on the board"""
+    # Jumps will be put in this list
     jumps = []
+    # Test in which direction it should be going
     if player == 2:
         direction = -1
     else:
         direction = 1
+    # Get all diagonal spaces of the piece
     diagonals = get_diagonals(piece)
     #print('Diagonals for piece ' + str(piece) + ': ' + str(diagonals))
+    # Iterate over the diagonals
     for i in diagonals:
         #print('Testing piece ' + str(i))
+        # Test if the space is occupied by an opponent and is in front of the piece
         if piece[0] + direction == i[0] and is_opponent(i, board, player):
+            # Get all diagonal spaces of the opponent's piece
             destinations = get_diagonals(i)
             #print('Destinations for piece ' + str(i) + ': ' + str(destinations))
+            # Iterate over these diagonals
             for j in destinations:
                 #print('Testing piece ' + str(j))
+                # Test if the piece is open for jumps
                 if is_open(piece, j, board):
+                    # If so, add it to the list
                     jumps.append(list([piece, j]))
+    # Return the list of possible jumps
     return jumps
 def list_moves(player, board):
     """List all possible moves that the specified player can make in a given situation"""
@@ -166,14 +185,18 @@ def list_moves(player, board):
             if board[j[0]][j[1]] == 0 and j[0] == i[0] + (1 if player == 1 else -1):
                 # If this is a valid move, add it to the list
                 moves.append(list([i, j]))
+        # Get all possible jumps for the piece
         jumps = get_jumps(i, board, player)
+        # Add each one to the list
         for j in jumps:
             moves.append(j)
         #else:
         #    print(str(i) + 'No moves')
     # Return the list
     return moves
+
 # This is the board, prettily drawn out as a '2-dimensional' list of lists
+
 board = [
 [1, 0, 1, 0, 1, 0, 1, 0],
 [0, 1, 0, 1, 0, 1, 0, 1],
@@ -184,8 +207,10 @@ board = [
 [2, 0, 2, 0, 2, 0, 2, 0],
 [0, 2, 0, 2, 0, 2, 0, 2]
 ]
+
 # Draw the board
 display(player, board)
+
 # Recursively print every move the player can make
 print('Moves for player ' + str(player) + ' (' + ('black' if player == 1 else 'red') + ')')
 print('Coordinates in form (y, x) as shown above')
