@@ -23,9 +23,9 @@ You should see something like this:
 - [x] Create function for displaying the board
 - [x] List diagonal spaces and recognize pieces
 - [x] Add move planning
-- [ ] Add jump planning
+- [x] Add jump planning
 - [ ] Support king piece moves
-- [ ] Support either-side moves
+- [x] Support either-side moves
 - [ ] Allow simulation of moves
 - [ ] Update the board when a move is made
 - [ ] Tally and judge moves by piece differential
