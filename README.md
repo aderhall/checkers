@@ -26,11 +26,11 @@ You should see something like this:
 - [x] Add jump planning
 - [ ] Support king piece moves
 - [x] Support either-side moves
-- [ ] Allow simulation of moves
+- [x] Allow simulation of moves
 - [ ] Update the board when a move is made
-- [ ] Tally and judge moves by piece differential
-- [ ] Add recursion for moves
-- [ ] Add recursion depth limiter
+- [x] Tally and judge moves by piece differential
+- [x] Add recursion for moves
+- [x] Add recursion depth limiter
 - [ ] Add interactive player vs computer games
 - [ ] Make windows-supported version
 - [ ] Build and publish as V0
