@@ -142,9 +142,14 @@ class Path(object):
         cutoff = 1 if cutoff == None else cutoff
         path = self.path if path == None else path
         trimmed_path = {}
+        if self.persistent == 0:
+            print('Trim progress (out of {}):'.format(len(list(path))))
         #path = self.path
         for i in path:
+            if self.persistent == 0:
+                print('█', end='', flush=True)
             if type(path[i]).__name__ == 'dict':
+                self.persistent += 1
                 trim = self.create_trim(path[i], cutoff)
                 if not trim == None:
                     trimmed_path[i] = trim
@@ -154,10 +159,11 @@ class Path(object):
                     #print('Results for move: {}  =>  {}'.format(i, path[i]))
                     trimmed_path[i] = path[i]
                     #print(path[i])
-                    print('█', end='', flush=True)
+        self.persistent -= 1
         return trimmed_path if len(trimmed_path) > 0 else None
     def trim(self, cutoff=None):
         cutoff = 1 if cutoff == None else cutoff
+        self.persistent = 0
         newpath = self.create_trim(self.path, cutoff)
         if not newpath == None:
             self.path = newpath
@@ -193,7 +199,7 @@ class Checkers:
     def display(self, board):
         """Render the board and pieces in pretty colors using ASCII block characters"""
         # Clear the screen
-        #os.system('clear')
+        os.system('clear')
         # Print who's turn it is
         print('Player: ' + str(self.player) + '\n')
         # These numbers go at the top and are useful in understanding the coordinate output
@@ -283,11 +289,12 @@ class Checkers:
 
         #    for move in future.keys():
 
-        if self.recursion_depth == 0:
+        """if self.recursion_depth == 0:
             print('Finished simulating turn: raw path created')
             curframe = inspect.currentframe()
             calframe = inspect.getouterframes(curframe, 2)
             print('Caller name:', calframe[1][3])
+        """
         self.recursion_depth -= 1
 
         return future
@@ -473,7 +480,7 @@ while True:
     plan = Path(checkers.turn(checkers.board))
     original_items = len(plan.values)
     print('\nTrimming Plan')
-    plan.trim(2)
+    plan.trim(3)
     #print(plan.path)
     #print(plan.path)
     print('\nUpdating Plan values')
@@ -485,7 +492,7 @@ while True:
     random_move = random.choice(list(plan.path))
     options = list(plan.path)
     print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
-    time.sleep(1)
+    #time.sleep(1)
     checkers.move(random_move)
     checkers.realplayer = 1 if checkers.realplayer == 2 else 2
     checkers.player = checkers.realplayer
