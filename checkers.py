@@ -4,6 +4,7 @@ import sys
 import time
 import copy
 import inspect
+import random
 # I copied these colors from blender
 class bcolors:
     HEADER = '\033[95m'
@@ -40,10 +41,10 @@ class Jump(object):
     def __str__(self):
         prettypath = ''
         for i in self.sequence:
-            #print(i)
+
             prettypath += ', ' + str(i)
 
-        #print(prettypath)
+
         prettypath = prettypath[2:]
 
         return '* {}Jump{} the piece at {} over {} and finish at {}'.format(bcolors.OKBLUE, bcolors.ENDC, str(self.start), str(prettypath), str(self.end))
@@ -58,7 +59,108 @@ class Move(object):
         return '* {}Move{} the piece at {} to {}'.format(bcolors.OKGREEN, bcolors.ENDC, str(self.start), str(self.end))
     def __repr__(self):
         return '{} to {}'.format(self.start, self.end)
+class Path(object):
+    """A path of moves."""
+    def __init__(self, path):
+        self.path = path
+        self.persistent = 0
+        self.values = self.get_values()
+        self.subjective_values = self.get_subjective_values()
+        self.depth = self.get_depth()
+        self.mean = self.subjective_mean()
+        self.stdev = self.subjective_stdev()
+    def __str__(self, update=False):
+        if update:
+            self.update()
+        items = len(self.values)
+        roots = len(self.path)
+        levels = self.depth
+        return 'Path of moves containing {} items from {} root moves, extending {} moves ahead.'.format(items, roots, levels)
+    def update(self, path=None):
+        if path == None:
+            pass
+        else:
+            self.path = path
+        self.persistent = 0
+        self.values = self.get_values()
+        self.subjective_values = self.get_subjective_values()
+        self.depth = self.get_depth()
+        self.mean = self.subjective_mean()
+        self.stdev = self.subjective_stdev()
+    def get_values(self, path=None):
+        values = []
+        if path == None:
+            path = self.path
+        for i in path:
+            if type(path[i]).__name__ == 'dict':
+                future = self.get_values(path[i])
 
+                values.extend(future)
+            else:
+                values.append(path[i])
+        return values
+    def get_subjective_values(self, path=None):
+        valuelist = []
+        if path == None:
+            path = self.path
+        for i in path:
+            if type(path[i]).__name__ == 'dict':
+                self.persistent += 1
+                #print('\t'*(self.persistent-1) + 'Calling self: layer {} on key: {}'.format(self.persistent, i))
+                future = self.get_subjective_values(path[i])
+                #print('\t'*(self.persistent) + 'Received future values: {}'.format(future))
+                valuelist.extend(future)
+            else:
+                distinction = (1 if self.persistent % 2 == 0 else -1)
+                #print('{}: results {}'.format(i, path[i]*distinction))
+                valuelist.append(path[i]*distinction)
+        self.persistent -= 1
+        return valuelist
+    def get_depth(self, path=None):
+        depth = 0
+        if path == None:
+            path = self.path
+        item = next (iter (path.values()))
+        #print(item)
+        if type(item).__name__ == 'dict':
+            depth += self.get_depth(item)
+            depth += 1
+        else:
+            depth += 1
+        return depth
+    def subjective_mean(self):
+        total = 0
+        for i in self.subjective_values:
+            total += i if i > 0 else 0
+        return total/len(self.values)
+    def subjective_stdev(self):
+        mean = self.mean
+        squares = sum((x-mean)**2 for x in self.subjective_values)
+        variance = squares/len(self.values)
+        return variance ** .5
+    def create_trim(self, path=None, cutoff=None):
+        cutoff = 1 if cutoff == None else cutoff
+        path = self.path if path == None else path
+        trimmed_path = {}
+        #path = self.path
+        for i in path:
+            if type(path[i]).__name__ == 'dict':
+                trim = self.create_trim(path[i], cutoff)
+                if not trim == None:
+                    trimmed_path[i] = trim
+            else:
+
+                if (path[i] - self.mean) / self.stdev > cutoff:
+                    #print('Results for move: {}  =>  {}'.format(i, path[i]))
+                    trimmed_path[i] = path[i]
+                    #print(path[i])
+                    print('█', end='', flush=True)
+        return trimmed_path if len(trimmed_path) > 0 else None
+    def trim(self, cutoff=None):
+        cutoff = 1 if cutoff == None else cutoff
+        newpath = self.create_trim(self.path, cutoff)
+        if not newpath == None:
+            self.path = newpath
 # Define the main functions this program will be using
 class Checkers:
     def __init__(self):
@@ -83,12 +185,15 @@ class Checkers:
         [2, 0, 2, 0, 2, 0, 2, 0],
         [0, 2, 0, 2, 0, 2, 0, 2]
         ]
+        # Not a parameter, modified by program. Do not change this, it will mess things up.
         self.recursion_depth = 0
-        self.recursion_depth_limit = 1
+        # Results will be nested a minimum of 2 times, looking at one opposition move after one own move.
+        # Subtract 2 from the desired amount and input it into the variable below as a parameter.
+        self.recursion_depth_limit = 2
     def display(self, board):
         """Render the board and pieces in pretty colors using ASCII block characters"""
         # Clear the screen
-        os.system('clear')
+        #os.system('clear')
         # Print who's turn it is
         print('Player: ' + str(self.player) + '\n')
         # These numbers go at the top and are useful in understanding the coordinate output
@@ -118,11 +223,11 @@ class Checkers:
         for space in board:
             simboard.append(list(space))
         if type(move).__name__ == 'Move':
-            #print('Testing move')
+
             simboard[move.start[0]][move.start[1]] = 0
             simboard[move.end[0]][move.end[1]] = self.player
         if type(move).__name__ == 'Jump':
-            #print('Testing jump')
+
             simboard[move.start[0]][move.start[1]] = 0
             simboard[move.end[0]][move.end[1]] = self.player
             for i in move.sequence:
@@ -130,46 +235,61 @@ class Checkers:
         return simboard
     def turn(self, board):
         """Return the decided turn for the player being simulated in the given situation (under construction)"""
-        #print('Moves for player ' + str(self.player) + ' (' + ('black' if self.player == 1 else 'red') + ')')
-        #print('Coordinates in form (y, x) as shown above')
+
+        progress = 0
+        movecount = 0
         future = {}
-        for move in self.list_moves(board):
-            #future[move] = {}
-            #print(move)
+        movelist = self.list_moves(board)
+        if self.recursion_depth == 0:
+            print('Plan Progress (out of {}): '.format(len(movelist)))
+        for move in movelist:
+            if self.recursion_depth == 0:
+                movecount += 1
+                newprog = int(10*movecount/len(movelist))
+                if newprog > progress:
+                    print('█', end='', flush=True)
+                    progress += 1
+
             simboard = self.simmove(move, board)
 
-            #time.sleep(1)
-            #self.display(simboard)
-            #time.sleep(1)
-            #self.display(self.board)
+
+
+
+
             if (self.recursion_depth <= self.recursion_depth_limit):
-                #print('Testing move: ' + str(move) + ' of player ' + str(self.player) + ' (' + ('black' if self.player == 1 else 'red') + ')')
+
                 newboard = self.simmove(move, board)
                 self.switch_player()
                 self.recursion_depth += 1
-                #print(future[move])
+
                 opposition = self.turn(newboard)
                 self.switch_player()
-                #print(opposition)
+
                 future[move] = opposition
             else:
-                #print('Move: {}'.format(str(move)))
-                my_pieces = len(self.list_pieces(simboard, self.player))
+                distinction = 1
+
+                my_pieces = distinction*len(self.list_pieces(simboard, self.player))
                 self.switch_player()
-                #print(my_pieces)
-                opponent_pieces = len(self.list_pieces(simboard, self.player))
+
+                opponent_pieces = distinction*len(self.list_pieces(simboard, self.player))
                 self.switch_player()
-                #print(opponent_pieces)
-                #if not (my_pieces == opponent_pieces):
+
+
                 #    print('HohOHOHo')
                 future[move] = my_pieces-opponent_pieces
 
-        #time.sleep(1)
-        #if (self.recursion_depth <= self.recursion_depth_limit):
+
+
         #    for move in future.keys():
 
-
+        if self.recursion_depth == 0:
+            print('Finished simulating turn: raw path created')
+            curframe = inspect.currentframe()
+            calframe = inspect.getouterframes(curframe, 2)
+            print('Caller name:', calframe[1][3])
         self.recursion_depth -= 1
+
         return future
     def get_diagonals(self, piece):
         """Get the diagonal spaces around a space and return a list of lists containing their coordinates"""
@@ -253,7 +373,7 @@ class Checkers:
                         jump.start = piece
                         jump.sequence.append(i)
                         jump.end = j
-                        #print(jump)
+
                         futurejumps = self.get_jumps(j, simboard)
                         future = False
                         for f in futurejumps:
@@ -263,13 +383,13 @@ class Checkers:
                             future = True
                         if not future:
                             jumps.append(jump)
-                        #return jumps
+
                         # Get the list of jumps
         # Return the list of possible jumps
         return jumps
     def list_pieces(self, board, player):
-        #print()
-        #print('Player: {}'.format(str(player)))
+
+
         #print(inspect.getouterframes(inspect.currentframe(), 2)[1][3])
         # Assemble list of all of the player's pieces
         # This is a list of all the players pieces
@@ -278,12 +398,12 @@ class Checkers:
         piece = [0,0]
         # Iterate through the rows of the board
         for i in board:
-            #print()
+
             # Start at the X index of 0 each row (the left side), kind of like a typewriter, if anybody knows what that is
             piece[1] = 0
             # Iterate over every space on the current row
             for j in i:
-                #print(str(j) + ' ', end='', flush=True)
+
                 # Test if the space is occupied by a piece belonging to the player
                 if j==player:
                     # Copy and append the piece coordinates to the list of pieces
@@ -293,19 +413,20 @@ class Checkers:
                 piece[1] += 1
             # Move to the next row
             piece[0] += 1
-        #print(pieces)
-        #print()
-        #print(len(pieces))
+
+
+
         return pieces
     def move(self, move):
+        board = self.board
         if type(move).__name__ == 'Move':
             board[move.start[0]][move.start[1]] = 0
             board[move.end[0]][move.end[1]] = self.player
         else:
-            simboard[move.start[0]][move.start[1]] = 0
-            simboard[move.end[0]][move.end[1]] = self.player
+            board[move.start[0]][move.start[1]] = 0
+            board[move.end[0]][move.end[1]] = self.player
             for i in move.sequence:
-                simboard[i[0]][i[1]] = 0
+                board[i[0]][i[1]] = 0
     def list_moves(self, board):
         """List all possible moves that the specified player can make in a given situation"""
         pieces = self.list_pieces(board, self.player)
@@ -340,28 +461,119 @@ class Checkers:
 
 checkers = Checkers()
 
-# Draw the board
-checkers.display(checkers.board)
+while True:
 
-plan = checkers.turn(checkers.board)
+    plan = None
+    print('Displaying')
+    # Draw the board
+    checkers.display(checkers.board)
+    checkers.recursion_depth_limit = 3
+    checkers.recursion_depth = 0
+    print('Creating Plan')
+    plan = Path(checkers.turn(checkers.board))
+    original_items = len(plan.values)
+    print('\nTrimming Plan')
+    plan.trim(2)
+    #print(plan.path)
+    #print(plan.path)
+    print('\nUpdating Plan values')
+    plan.update()
+    print('Analyzed {} possible situations, eliminated {} of them.'.format(original_items, original_items-len(plan.values)))
+    print('Resulting path: {}'.format(plan))
+    print('Mean: {}'.format(plan.mean))
+    print('Standard Deviation: {}'.format(plan.stdev))
+    random_move = random.choice(list(plan.path))
+    options = list(plan.path)
+    print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
+    time.sleep(1)
+    checkers.move(random_move)
+    checkers.realplayer = 1 if checkers.realplayer == 2 else 2
+    checkers.player = checkers.realplayer
 
-scoresum = 0
-scorecount = 0
+#pathfile = open('assets/0.path', 'w')
+#pathfile.write(str(plan.path))
+#pathfile.close()
+
+
+#print(plan)
+"""def mean_rank(plan):
+    scoresum = 0
+    scorecount = 0
+    for i in plan:
+        if type(plan[i]).__name__ == 'dict':
+            future = mean_rank(plan[i])
+            scoresum += future[0]
+            scorecount += future[1]
+        else:
+
+            scoresum += abs(plan[i])
+            scorecount += 1
+    return list([scoresum, scorecount])
+"""
+#ranking = mean_rank(plan)
+#mean = ranking[0]/ranking[1]
+"""
+def variance(plan, mean):
+    devsum = 0
+    devcount = 0
+    for i in plan:
+        if type(plan[i]).__name__ == 'dict':
+            future = variance(plan[i], mean)
+            devsum += future[0]
+            devcount += future[1]
+        else:
+            dev = plan[i] - mean
+            dev = dev * dev
+            devsum += dev
+            devcount += 1
+    return list([devsum, devcount])
+#variance = variance(plan, mean)
+#variance = variance[0]/variance[1]
+#print(variance)
+#stdev = variance ** .5
+#print(stdev)
+def rank(plan, mean, stdev):
+    roadmap = []
+    for i in plan:
+        if type(plan[i]).__name__ == 'dict':
+            roadmap.extend(rank(plan[i], mean, stdev))
+        else:
+            #print(plan[i])
+            if (plan[i] - mean)/stdev > 1:
+                roadmap.append(i)
+    return roadmap
+#ranking = rank(plan, mean, stdev)
+#for i in ranking:
+#    print('The move: \n {} \nwas selected because its point differential has a Z-score greater than 1'.format(str(i)))
+"""
+"""
+Plan:
+go through a dict
+if the value is also a dict, call itself for that
+if not, test if the abs value is higher than average
+if it is higher, add it to a roadmap list
+return the roadmap list
+"""
+
+"""
 for i in plan.keys():
     #print('{}:'.format(i))
     for j in plan[i]:
         #print('\t{}:'.format(j))
         #print('\t\t{}'.format(plan[i][j]))
         for k in plan[i][j]:
-            scoresum += plan[i][j][k]
-            scorecount += 1
+            for l in plan[i][j][k]:
+                scoresum += abs(plan[i][j][k][l])
+                scorecount += 1
 average = scoresum/scorecount
 print('Average: {}'.format(str(average)))
 for i in plan.keys():
     for j in plan[i]:
         for k in plan[i][j]:
-            if plan[i][j][k] < -1:
-                print('Plan: {} is viable as it got a high score of {}'.format(i, str(plan[i][j][k]*-1)))
+            for l in plan[i][j][k]:
+                if plan[i][j][k][l] < -2:
+                    print('Plan: {} is viable as it got a high score of {}'.format(i, str(plan[i][j][k][l]*-1)))
+                    """
 """ This is for testing that the non-turn functions work
 # Recursively print every move the player can make- side function while turn simulation is not available
 print('Moves for player ' + str(checkers.player) + ' (' + ('black' if checkers.player == 1 else 'red') + ')')
