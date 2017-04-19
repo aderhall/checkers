@@ -60,7 +60,7 @@ class Move(object):
     def __repr__(self):
         return '{} to {}'.format(self.start, self.end)
 class Path(object):
-    """A path of moves."""
+    """A path of moves, with many built-in properties for strategy purposes."""
     def __init__(self, path):
         self.path = path
         self.persistent = 0
@@ -81,12 +81,20 @@ class Path(object):
             pass
         else:
             self.path = path
-        self.persistent = 0
-        self.values = self.get_values()
-        self.subjective_values = self.get_subjective_values()
-        self.depth = self.get_depth()
-        self.mean = self.subjective_mean()
-        self.stdev = self.subjective_stdev()
+        if len(list(self.path)) > 0:
+            self.persistent = 0
+            self.values = self.get_values()
+            self.subjective_values = self.get_subjective_values()
+            self.depth = self.get_depth()
+            self.mean = self.subjective_mean()
+            self.stdev = self.subjective_stdev()
+        else:
+            self.persistent = 0
+            self.values = []
+            self.subjective_values = []
+            self.depth = 0
+            self.mean = 0
+            self.stdev = 0
     def get_values(self, path=None):
         values = []
         if path == None:
@@ -120,28 +128,32 @@ class Path(object):
         depth = 0
         if path == None:
             path = self.path
-        item = next (iter (path.values()))
-        #print(item)
-        if type(item).__name__ == 'dict':
-            depth += self.get_depth(item)
-            depth += 1
+        item = list(path)
+        if len(item) == 0:
+            return 0
         else:
-            depth += 1
-        return depth
+            #print(item)
+            if type(item).__name__ == 'dict':
+                depth += self.get_depth(item)
+                depth += 1
+            else:
+                depth += 1
+            return depth
     def subjective_mean(self):
         total = 0
         for i in self.subjective_values:
             total += i if i > 0 else 0
-        return total/len(self.values)
+        return total/len(self.values) if len(self.values) > 0 else 0
     def subjective_stdev(self):
         mean = self.mean
         squares = sum((x-mean)**2 for x in self.subjective_values)
-        variance = squares/len(self.values)
+        variance = squares/len(self.values) if len(self.values) > 0 else 0
         return variance ** .5
     def create_trim(self, path=None, cutoff=None):
         cutoff = 1 if cutoff == None else cutoff
         path = self.path if path == None else path
         trimmed_path = {}
+        demerits = 0
         if self.persistent == 0:
             print('Trim progress (out of {}):'.format(len(list(path))))
         #path = self.path
@@ -151,22 +163,24 @@ class Path(object):
             if type(path[i]).__name__ == 'dict':
                 self.persistent += 1
                 trim = self.create_trim(path[i], cutoff)
-                if not trim == None:
-                    trimmed_path[i] = trim
+                if (not trim == None) and (not trim[1] > cutoff):
+                    trimmed_path[i] = trim[0]
             else:
-
-                if (path[i] - self.mean) / self.stdev > cutoff:
-                    #print('Results for move: {}  =>  {}'.format(i, path[i]))
-                    trimmed_path[i] = path[i]
-                    #print(path[i])
+                if not self.stdev == 0:
+                    if (path[i] - self.mean) / self.stdev > cutoff:
+                        #print('Results for move: {}  =>  {}'.format(i, path[i]))
+                        trimmed_path[i] = path[i]
+                        #print(path[i])
+                    else:
+                        demerits += 1
         self.persistent -= 1
-        return trimmed_path if len(trimmed_path) > 0 else None
+        return (trimmed_path, demerits) if len(trimmed_path) > 0 else None
     def trim(self, cutoff=None):
         cutoff = 1 if cutoff == None else cutoff
         self.persistent = 0
         newpath = self.create_trim(self.path, cutoff)
         if not newpath == None:
-            self.path = newpath
+            self.path = newpath[0]
 # Define the main functions this program will be using
 class Checkers:
     def __init__(self):
@@ -182,12 +196,12 @@ class Checkers:
         # This is the board, prettily drawn out as a '2-dimensional' list of lists
 
         self.board = [
-        [1, 0, 0, 0, 1, 0, 1, 0],
+        [1, 0, 1, 0, 1, 0, 1, 0],
         [0, 1, 0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 0, 0, 1, 0],
-        [0, 1, 0, 2, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 2, 0],
-        [0, 0, 0, 2, 0, 2, 0, 0],
+        [1, 0, 1, 0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 2, 0, 2, 0, 2, 0, 2],
         [2, 0, 2, 0, 2, 0, 2, 0],
         [0, 2, 0, 2, 0, 2, 0, 2]
         ]
@@ -467,14 +481,13 @@ class Checkers:
 # Create the checkers object
 
 checkers = Checkers()
-
-while True:
-
+gameover = False
+while not gameover:
     plan = None
     print('Displaying')
     # Draw the board
     checkers.display(checkers.board)
-    checkers.recursion_depth_limit = 3
+    checkers.recursion_depth_limit = 4
     checkers.recursion_depth = 0
     print('Creating Plan')
     plan = Path(checkers.turn(checkers.board))
@@ -485,17 +498,23 @@ while True:
     #print(plan.path)
     print('\nUpdating Plan values')
     plan.update()
+    print('Reporting result:')
     print('Analyzed {} possible situations, eliminated {} of them.'.format(original_items, original_items-len(plan.values)))
     print('Resulting path: {}'.format(plan))
     print('Mean: {}'.format(plan.mean))
     print('Standard Deviation: {}'.format(plan.stdev))
-    random_move = random.choice(list(plan.path))
-    options = list(plan.path)
-    print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
-    #time.sleep(1)
-    checkers.move(random_move)
-    checkers.realplayer = 1 if checkers.realplayer == 2 else 2
-    checkers.player = checkers.realplayer
+    if len(list(plan.path)) > 0:
+        random_move = random.choice(list(plan.path))
+        options = list(plan.path)
+        print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
+        #time.sleep(1)
+        checkers.move(random_move)
+        checkers.realplayer = 1 if checkers.realplayer == 2 else 2
+        checkers.player = checkers.realplayer
+    else:
+        print('Could not move! {}Game over.{}'.format(bcolors.FAIL, bcolors.ENDC))
+        gameover = True
+print('{}Player {} Wins!!!{}'.format(bcolors.OKGREEN, 1 if checkers.realplayer == 2 else 2, bcolors.ENDC))
 
 #pathfile = open('assets/0.path', 'w')
 #pathfile.write(str(plan.path))
