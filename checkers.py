@@ -18,6 +18,8 @@ class bcolors:
     # These are for the checkerboard (I made them myself)
     WHITE = '\033[37m'
     BLACK = '\033[30m'
+    GRAY = '\033[90m'
+    RED = '\033[31m'
 # Check if the user has specified a specific player
 class Jump(object):
     """A jump sequence"""
@@ -185,13 +187,33 @@ class Path(object):
 class Checkers:
     def __init__(self):
         self.arguments = sys.argv
+        self.mode = 'default'
+        trailing = False
+        for i in self.arguments:
+            if not trailing:
+                if i == '-i':
+                    self.mode = 'interactive'
+                elif i == '-s':
+                    self.mode = 'selfplay'
+                elif i == '-b':
+                    trailing = True
+                    flag = '-b'
+            else:
+                trailing = False
+                if flag == '-b':
+                    filename = i
+                    boardfile = open(filename)
+                    self.board = boardfile.read()
+                flag = ''
+
         # RealPlayer style doesn't apply here, I hope :)
-        if len(self.arguments) == 1:
-            self.realplayer = 1
-        elif 'p1' in self.arguments:
+        if 'p1' in self.arguments:
             self.realplayer = 1
         elif 'p2' in self.arguments:
             self.realplayer = 2
+        else:
+            self.realplayer = 1
+
         self.player = self.realplayer
         # This is the board, prettily drawn out as a '2-dimensional' list of lists
 
@@ -229,7 +251,7 @@ class Checkers:
             # Print the pieces
             for j in i:
                 # Set the actual piece to a 2-char block character of the appropriate color
-                piece = (bcolors.BLACK + '██') if j == 1 else ((bcolors.FAIL + '██') if j == 2 else bcolors.WHITE + '  ')
+                piece = (bcolors.BLACK + '██') if j == 1 else ((bcolors.FAIL + '██') if j == 2 else (bcolors.GRAY + '██' if j == 3 else (bcolors.RED + '██' if j == 4 else bcolors.WHITE + '  ')))
                 # Print it
                 print(piece, end='', flush=True)
             # Reset the colors and print the border
@@ -361,16 +383,17 @@ class Checkers:
         # Jumps will be put in this list
         jumps = []
         # Test in which direction it should be going
-        if self.player == 2:
-            direction = -1
+        if self.get_player(piece) > 2:
+            direction = [1,-1]
         else:
-            direction = 1
+            d = (1 if self.player == 1 else -1)
+            direction = [d,d]
         # Get all diagonal spaces of the piece
         diagonals = self.get_diagonals(piece)
         # Iterate over the diagonals
         for i in diagonals:
             # Test if the space is occupied by an opponent and is in front of the piece
-            if piece[0] + direction == i[0] and self.is_opponent(i) and (not self.get_player(i) == 0):
+            if (piece[0] + direction[0] == i[0] or piece[0] + direction[1] == i[0]) and self.is_opponent(i) and (not self.get_player(i) == 0):
                 # Get all diagonal spaces of the opponent's piece
                 destinations = self.get_diagonals(i)
                 # Iterate over these diagonals
@@ -426,7 +449,7 @@ class Checkers:
             for j in i:
 
                 # Test if the space is occupied by a piece belonging to the player
-                if j==player:
+                if j == player or j == player + 2:
                     # Copy and append the piece coordinates to the list of pieces
                     current_piece = list(piece)
                     pieces.append(current_piece)
@@ -440,12 +463,21 @@ class Checkers:
         return pieces
     def move(self, move):
         board = self.board
+        original_piece = self.get_player([move.start[0], move.start[1]])
         if type(move).__name__ == 'Move':
             board[move.start[0]][move.start[1]] = 0
-            board[move.end[0]][move.end[1]] = self.player
+            if move.end[0] == 0 or move.end[0] == 7:
+                #print('Augmenting...')
+                board[move.end[0]][move.end[1]] = (original_piece if original_piece > 2 else original_piece + 2)
+            else:
+                board[move.end[0]][move.end[1]] = original_piece
         else:
             board[move.start[0]][move.start[1]] = 0
-            board[move.end[0]][move.end[1]] = self.player
+            if move.end[0] == 0 or move.end[0] == 7:
+                #print('Augmenting...')
+                board[move.end[0]][move.end[1]] = (original_piece if original_piece > 2 else original_piece + 2)
+            else:
+                board[move.end[0]][move.end[1]] = original_piece
             for i in move.sequence:
                 board[i[0]][i[1]] = 0
     def list_moves(self, board):
@@ -456,11 +488,16 @@ class Checkers:
         moves = []
         # Iterate over the newly made list of pieces
         for i in pieces:
+            if self.get_player(i) > 2:
+                direction = [1,-1]
+            else:
+                d = (1 if self.player == 1 else -1)
+                direction = [d,d]
             # Get the diagonal spaces surrounding the piece
             diagonals = self.get_diagonals(i)
             # Iterate over the diagonals and check for availability
             for j in diagonals:
-                if board[j[0]][j[1]] == 0 and j[0] == i[0] + (1 if self.player == 1 else -1):
+                if board[j[0]][j[1]] == 0 and (j[0] == i[0] + direction[0] or j[0] == i[0] + direction[1]):
                     # If this is a valid move, add it to the list
                     # Create a move object and set its properties
                     move = Move()
@@ -481,40 +518,184 @@ class Checkers:
 # Create the checkers object
 
 checkers = Checkers()
-gameover = False
-while not gameover:
-    plan = None
-    print('Displaying')
-    # Draw the board
+if checkers.mode == 'default':
     checkers.display(checkers.board)
-    checkers.recursion_depth_limit = 4
-    checkers.recursion_depth = 0
-    print('Creating Plan')
-    plan = Path(checkers.turn(checkers.board))
-    original_items = len(plan.values)
-    print('\nTrimming Plan')
-    plan.trim(3)
-    #print(plan.path)
-    #print(plan.path)
-    print('\nUpdating Plan values')
-    plan.update()
-    print('Reporting result:')
-    print('Analyzed {} possible situations, eliminated {} of them.'.format(original_items, original_items-len(plan.values)))
-    print('Resulting path: {}'.format(plan))
-    print('Mean: {}'.format(plan.mean))
-    print('Standard Deviation: {}'.format(plan.stdev))
-    if len(list(plan.path)) > 0:
-        random_move = random.choice(list(plan.path))
-        options = list(plan.path)
-        print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
-        #time.sleep(1)
-        checkers.move(random_move)
-        checkers.realplayer = 1 if checkers.realplayer == 2 else 2
-        checkers.player = checkers.realplayer
-    else:
-        print('Could not move! {}Game over.{}'.format(bcolors.FAIL, bcolors.ENDC))
-        gameover = True
-print('{}Player {} Wins!!!{}'.format(bcolors.OKGREEN, 1 if checkers.realplayer == 2 else 2, bcolors.ENDC))
+    print('Welcome to {}Checkers!{}\nCheckers is a command-line checkers opponent built in python. To use, type:\npython3 checkers.py <options>\nOptions:\n\t-i\tinteractive: play against the machine.\n\t-s\tselfplay: make the machine play against itself.\n\t-b <boardfile>\tboardfile input: start playing from a saved board.\nFor more information, see the docs at https://aderhall.github.io/checkers'.format(bcolors.OKBLUE, bcolors.ENDC))
+elif checkers.mode == 'selfplay':
+    gameover = False
+    while not gameover:
+        plan = None
+        print('Displaying')
+        # Draw the board
+        checkers.display(checkers.board)
+        checkers.recursion_depth_limit = 2
+        checkers.recursion_depth = 0
+        print('Creating Plan')
+        plan = Path(checkers.turn(checkers.board))
+        original_items = len(plan.values)
+        print('\nTrimming Plan')
+        plan.trim(3)
+        #print(plan.path)
+        #print(plan.path)
+        print('\nUpdating Plan values')
+        plan.update()
+        print('Reporting result:')
+        print('Analyzed {} possible situations, eliminated {} of them.'.format(original_items, original_items-len(plan.values)))
+        print('Resulting path: {}'.format(plan))
+        print('Mean: {}'.format(plan.mean))
+        print('Standard Deviation: {}'.format(plan.stdev))
+        if len(list(plan.path)) > 0:
+            random_move = random.choice(list(plan.path))
+            options = list(plan.path)
+            print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
+            #time.sleep(1)
+            checkers.move(random_move)
+            checkers.realplayer = 1 if checkers.realplayer == 2 else 2
+            checkers.player = checkers.realplayer
+        else:
+            print('Could not move! {}Game over.{}'.format(bcolors.FAIL, bcolors.ENDC))
+            gameover = True
+    print('{}Player {} Wins!!!{}'.format(bcolors.OKGREEN, 1 if checkers.realplayer == 2 else 2, bcolors.ENDC))
+elif checkers.mode == 'interactive':
+    me = 2
+    gameover = False
+    while not gameover:
+        if checkers.realplayer == me:
+            plan = None
+            print('Displaying')
+            # Draw the board
+            checkers.display(checkers.board)
+            checkers.recursion_depth_limit = 4
+            checkers.recursion_depth = 0
+            print('Creating Plan')
+            plan = Path(checkers.turn(checkers.board))
+            original_items = len(plan.values)
+            print('\nTrimming Plan')
+            plan.trim(3)
+            #print(plan.path)
+            #print(plan.path)
+            print('\nUpdating Plan values')
+            plan.update()
+            print('Reporting result:')
+            print('Analyzed {} possible situations, eliminated {} of them.'.format(original_items, original_items-len(plan.values)))
+            print('Resulting path: {}'.format(plan))
+            print('Mean: {}'.format(plan.mean))
+            print('Standard Deviation: {}'.format(plan.stdev))
+            if len(list(plan.path)) > 0:
+                random_move = random.choice(list(plan.path))
+                options = list(plan.path)
+                print('Decided on move: {} from list of {} available.'.format(random_move, len(options)))
+                #time.sleep(1)
+                checkers.move(random_move)
+                checkers.realplayer = 1 if checkers.realplayer == 2 else 2
+                checkers.player = checkers.realplayer
+            else:
+                print('Could not move! {}Game over.{}'.format(bcolors.FAIL, bcolors.ENDC))
+                gameover = True
+        else:
+            checkers.display(checkers.board)
+            searching = True
+            while searching:
+                moveinput = input('Type the coordinates of the piece you would like to move (x, y): ')
+                formatted = False
+                try:
+                    if int(moveinput[1]) < 9 and int(moveinput[-2]) < 9:
+                        formatted = True
+                    else:
+                        print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                except:
+                        print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                if formatted:
+                    piece = [int(moveinput[-2]), int(moveinput[1])]
+                    if piece in checkers.list_pieces(checkers.board, checkers.realplayer):
+                        searching = False
+                    else:
+                        print('You do not appear to have a piece at this location. You are player {} ({}).'.format(checkers.realplayer, 'black' if checkers.realplayer == 1 else 'red'))
+            starting_piece = piece
+            print('Moving piece: ' + moveinput)
+            searching = True
+            while searching:
+                moveinput = input('Please specify whether you will be making a standard move or a jump move (type "m" or "j"): ')
+                try:
+                    if moveinput == 'm' or moveinput == 'j':
+                        searching = False
+                    else:
+                        print('Unrecognized input! Please enter either m or j')
+                except:
+                        print('Unrecognized input! Please enter either m or j')
+            movetype = 'Jump' if moveinput == 'j' else 'Move'
+            print('Creating a ' + movetype)
+            building = True
+            while building:
+                searching = True
+                while searching:
+                    formatted = False
+                    moveinput = input('Please type the coordinates of the final destination, just like the first time: ')
+                    try:
+                        if int(moveinput[1]) < 9 and int(moveinput[-2]) < 9:
+                            formatted = True
+                        else:
+                            print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                    except:
+                            print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                    if formatted:
+                        piece = [int(moveinput[-2]), int(moveinput[1])]
+                        searching = False
+                ending_piece = piece
+                if movetype == 'Jump':
+                    jumping = True
+                    while jumping:
+                        print('Please type the coordinates of each space to be jumped. Type "stop" when you\'re ready.')
+                        searching = True
+                        pieces = []
+                        while searching:
+                            formatted = False
+                            moveinput = input('Enter a coordinate pair, or "stop": ')
+                            if moveinput == 'stop':
+                                searching = False
+                            else:
+                                try:
+                                    if (int(moveinput[1]) < 9 and int(moveinput[-2]) < 9) or moveinput == 'stop':
+                                        formatted = True
+                                    else:
+                                        print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                                except:
+                                        print('Unrecognized input! Please enter the coordinates in form (x, y)')
+                                if formatted:
+                                    pieces.append([int(moveinput[-2]), int(moveinput[1])])
+                        if len(pieces) == 0:
+                            print('You have to jump over at least one piece to make a jump.')
+                        else:
+                            jumping = False
+                    sequence = pieces
+                    move = Jump()
+                    move.start = starting_piece
+                    move.end = ending_piece
+                    move.sequence = sequence
+                else:
+                    move = Move()
+                    move.start = starting_piece
+                    move.end = ending_piece
+                print('Testing the move: ' + str(move))
+                movelist = checkers.list_moves(checkers.board)
+                #print(movelist)
+                #print(repr(move))
+                canmove = False
+                for i in movelist:
+                    if repr(i) == repr(move):
+                        canmove = True
+                if canmove:
+                    print('Move accepted! Moving...')
+                    building = False
+                else:
+                    print('Sorry sweetheart, I don\'t think you can move there!')
+                    building = False
+            if not canmove:
+                time.sleep(2)
+            else:
+                checkers.move(move)
+                checkers.realplayer = 1 if checkers.realplayer == 2 else 2
+                checkers.player = checkers.realplayer
 
 #pathfile = open('assets/0.path', 'w')
 #pathfile.write(str(plan.path))
